@@ -12,6 +12,7 @@ static long eval_op(long x, char *op, long y) {
 	if (strcmp(op, "*") == 0) { return x * y; }
 	if (strcmp(op, "/") == 0) { return x / y; }
 	if (strcmp(op, "%") == 0) { return x % y; }
+	if (strcmp(op, "^") == 0) { return (long)pow(x, y); }
 	return 0;
 }
 
@@ -51,7 +52,7 @@ int main(int argc, char** argv) {
 		  "number   : /-?[0-9]+/ ('.' /[0-9]+/)? ;"
 		  "operator : '+' | \"add\" | '-' | \"sub\""
 		  "         | '*' | \"mul\" | '/' | \"div\""
-		  "         | '%' | \"mod\" ;"
+		  "         | '%' | \"mod\" | '^' ;"
 		  "expr     : <number> | '(' <operator> <expr>+ ')' ;"
 		  "lispy    : /^/ <operator> <expr>+ /$/ ; "
 		  "",
