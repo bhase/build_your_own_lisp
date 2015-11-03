@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
 	/* Define them with the following language */
 	mpca_lang(MPCA_LANG_DEFAULT,
 		  ""
-		  "number   : /-?[0-9]+/ ('.' /[0-9]+/)? ;"
+		  "number   : /-?[0-9]+\\.[0-9]+/ | /-?[0-9]+/ ;"
 		  "operator : '+' | \"add\" | '-' | \"sub\""
 		  "         | '*' | \"mul\" | '/' | \"div\""
 		  "         | '%' | \"mod\" | '^' ;"
