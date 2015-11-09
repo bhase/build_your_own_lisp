@@ -191,14 +191,11 @@ static lval * builtin_op(lval *a, char *op) {
 
 		if (strcmp(op, "+") == 0) {
 			x->num += y->num;
-		}
-		if (strcmp(op, "-") == 0) {
+		} else if (strcmp(op, "-") == 0) {
 			x->num -= y->num;
-		}
-		if (strcmp(op, "*") == 0) {
+		} else if (strcmp(op, "*") == 0) {
 			x->num *= y->num;
-		}
-		if (strcmp(op, "/") == 0) {
+		} else if (strcmp(op, "/") == 0) {
 			if (y->num == 0) {
 				lval_del(x);
 				lval_del(y);
@@ -206,8 +203,7 @@ static lval * builtin_op(lval *a, char *op) {
 				break;
 			}
 			x->num /= y->num;
-		}
-		if (strcmp(op, "%") == 0) {
+		} else if (strcmp(op, "%") == 0) {
 			if (y->num == 0) {
 				lval_del(x);
 				lval_del(y);
@@ -215,6 +211,13 @@ static lval * builtin_op(lval *a, char *op) {
 				break;
 			}
 			x->num %= y->num;
+		} else if (strcmp(op, "^") == 0) {
+			x->num = pow(x->num, y->num);
+		} else {
+			lval_del(x);
+			lval_del(y);
+			x = lval_err("unknown operator!");
+			break;
 		}
 
 		lval_del(y);
