@@ -23,6 +23,7 @@ typedef struct lval {
 	struct lval **cell;
 } lval;
 
+
 static lval * lval_num(long x) {
 	lval *v = malloc(sizeof(lval));
 	v->type = LVAL_NUM;
@@ -62,6 +63,7 @@ static lval * lval_qexpr(void) {
 	return v;
 }
 
+
 static void lval_del(lval *v) {
 	switch (v->type) {
 	/* no special handling for numbers */
@@ -83,11 +85,13 @@ static void lval_del(lval *v) {
 	free(v);
 }
 
+
 static lval * lval_read_num(mpc_ast_t *t) {
 	errno = 0;
 	long x = strtol(t->contents, NULL, 10);
 	return errno != ERANGE ? lval_num(x) : lval_err("invalid number");
 }
+
 
 static lval * lval_add(lval *v, lval *x) {
 	v->count++;
@@ -119,6 +123,7 @@ static lval * lval_read(mpc_ast_t *t) {
 
 	return x;
 }
+
 
 static void lval_print(lval *v);
 static void lval_expr_print(lval *v, char open, char close) {
@@ -181,6 +186,19 @@ static lval * lval_take(lval *v, int i) {
 	return x;
 }
 
+static lval * lval_join(lval *x, lval *y) {
+
+	/* for each cell in 'y' add it to 'x' */
+	while (y->count) {
+		x = lval_add(x, lval_pop(y, 0));
+	}
+
+	/* Delete empty 'y' and return 'x' */
+	lval_del(y);
+	return x;
+}
+
+
 static lval * builtin_head(lval *a) {
 	LASSERT(a, a->count == 1,
 		"Function 'head' passed too many arguments!");
@@ -214,6 +232,17 @@ static lval * builtin_list(lval *a) {
 	return a;
 }
 
+static lval * builtin_len(lval *a) {
+	LASSERT(a, a->count == 1,
+		"Function 'head' passed too many arguments!");
+	LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
+		"Function 'head' passed incorrect type!");
+
+	lval *v = lval_num(a->cell[0]->count);
+	lval_del(a);
+	return v;
+}
+
 static lval * lval_eval(lval *x);
 static lval * builtin_eval(lval *a) {
 	LASSERT(a, a->count == 1,
@@ -224,18 +253,6 @@ static lval * builtin_eval(lval *a) {
 	lval *x = lval_take(a, 0);
 	x->type = LVAL_SEXPR;
 	return lval_eval(x);
-}
-
-static lval * lval_join(lval *x, lval *y) {
-
-	/* for each cell in 'y' add it to 'x' */
-	while (y->count) {
-		x = lval_add(x, lval_pop(y, 0));
-	}
-
-	/* Delete empty 'y' and return 'x' */
-	lval_del(y);
-	return x;
 }
 
 static lval * builtin_join(lval *a) {
@@ -278,13 +295,10 @@ static lval * builtin_op(lval *a, char *op) {
 		/* pop the next element */
 		lval *y = lval_pop(a, 0);
 
-		if (strcmp(op, "+") == 0) {
-			x->num += y->num;
-		} else if (strcmp(op, "-") == 0) {
-			x->num -= y->num;
-		} else if (strcmp(op, "*") == 0) {
-			x->num *= y->num;
-		} else if (strcmp(op, "/") == 0) {
+		if (strcmp(op, "+") == 0) { x->num += y->num; }
+		if (strcmp(op, "-") == 0) { x->num -= y->num; }
+		if (strcmp(op, "*") == 0) { x->num *= y->num; }
+		if (strcmp(op, "/") == 0) {
 			if (y->num == 0) {
 				lval_del(x);
 				lval_del(y);
@@ -292,7 +306,8 @@ static lval * builtin_op(lval *a, char *op) {
 				break;
 			}
 			x->num /= y->num;
-		} else if (strcmp(op, "%") == 0) {
+		}
+		if (strcmp(op, "%") == 0) {
 			if (y->num == 0) {
 				lval_del(x);
 				lval_del(y);
@@ -300,15 +315,8 @@ static lval * builtin_op(lval *a, char *op) {
 				break;
 			}
 			x->num %= y->num;
-		} else if (strcmp(op, "^") == 0) {
-			x->num = pow(x->num, y->num);
-		} else {
-			lval_del(x);
-			lval_del(y);
-			x = lval_err("unknown operator!");
-			break;
 		}
-
+		if (strcmp(op, "^") == 0) { x->num = pow(x->num, y->num); }
 		lval_del(y);
 	}
 
@@ -322,6 +330,7 @@ static lval * builtin(lval *a, char *func) {
 	if (strcmp("tail", func) == 0) { return builtin_tail(a); }
 	if (strcmp("join", func) == 0) { return builtin_join(a); }
 	if (strcmp("eval", func) == 0) { return builtin_eval(a); }
+	if (strcmp("len", func)  == 0) { return builtin_len(a); }
 	if (strstr("+-/*%^", func)) { return builtin_op(a, func); }
 	lval_del(a);
 	return lval_err("Unknown Function!");
@@ -376,6 +385,7 @@ static lval * lval_eval(lval *v) {
 	return v;
 }
 
+
 int main(int argc, char** argv) {
 
 	/* Create some parsers */
@@ -391,6 +401,7 @@ int main(int argc, char** argv) {
 		  ""
 		  "number   : /-?[0-9]+/ ;"
 		  "symbol   : '+' | '-' | '*' | '/' | '%' | '^' "
+		  "         | \"len\" "
 		  "         | \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\" ;"
 		  "sexpr    : '(' <expr>* ')' ;"
 		  "qexpr    : '{' <expr>* '}' ;"
