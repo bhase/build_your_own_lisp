@@ -1,20 +1,14 @@
 
-all: prompt parsing eval error_handling s_expression q_expression
+targets := prompt parsing eval error_handling s_expression q_expression
 
-prompt: prompt.c
-	gcc -Wall -std=c99 $^ -lm -lreadline -o $@
+all: $(targets)
 
-parsing: parsing.c mpc.c
-	gcc -Wall -std=c99 $^ -lm -lreadline -o $@
+define TARGET_template =
+$(1): $(addsuffix .c,$1) mpc.c
+	gcc -Wall -std=c99 $$^ -lm -lreadline -o $$@
+endef
 
-eval: eval.c mpc.c
-	gcc -Wall -std=c99 $^ -lm -lreadline -o $@
+$(foreach prog,$(targets),$(eval $(call TARGET_template,$(prog))))
 
-error_handling: error_handling.c mpc.c
-	gcc -Wall -std=c99 $^ -lm -lreadline -o $@
-
-s_expression: s_expression.c mpc.c
-	gcc -Wall -std=c99 $^ -lm -lreadline -o $@
-
-q_expression: q_expression.c mpc.c
-	gcc -Wall -std=c99 $^ -lm -lreadline -o $@
+clean:
+	rm $(targets)
