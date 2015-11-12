@@ -1,5 +1,5 @@
 
-targets := prompt parsing eval error_handling s_expression q_expression
+targets := 04_prompt 06_parsing 07_eval 08_error_handling 09_s_expression 10_q_expression
 
 all: $(targets)
 
