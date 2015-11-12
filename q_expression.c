@@ -92,7 +92,6 @@ static lval * lval_read_num(mpc_ast_t *t) {
 	return errno != ERANGE ? lval_num(x) : lval_err("invalid number");
 }
 
-
 static lval * lval_add(lval *v, lval *x) {
 	v->count++;
 	v->cell = realloc(v->cell, sizeof(lval *) * v->count);
@@ -243,6 +242,25 @@ static lval * builtin_len(lval *a) {
 	return v;
 }
 
+static lval * builtin_cons(lval *a) {
+	LASSERT(a, a->count == 2,
+		"Function 'cons' passed too many arguments!");
+	LASSERT(a, a->cell[0]->type == LVAL_NUM,
+		"Function 'cons' passed incorrect type!");
+	LASSERT(a, a->cell[1]->type == LVAL_QEXPR,
+		"Function 'cons' passed incorrect type!");
+
+	lval *n = lval_pop(a, 0);
+	lval *v = lval_take(a, 0);
+
+	v->count++;
+	v->cell = realloc(v->cell, sizeof(lval *) * v->count);
+	memmove(&v->cell[1], &v->cell[0], sizeof(lval *) * (v->count - 1));
+	v->cell[0] = n;
+
+	return v;
+}
+
 static lval * lval_eval(lval *x);
 static lval * builtin_eval(lval *a) {
 	LASSERT(a, a->count == 1,
@@ -330,7 +348,8 @@ static lval * builtin(lval *a, char *func) {
 	if (strcmp("tail", func) == 0) { return builtin_tail(a); }
 	if (strcmp("join", func) == 0) { return builtin_join(a); }
 	if (strcmp("eval", func) == 0) { return builtin_eval(a); }
-	if (strcmp("len", func)  == 0) { return builtin_len(a); }
+	if (strcmp("cons", func) == 0) { return builtin_cons(a); }
+	if (strcmp("len",  func) == 0) { return builtin_len(a); }
 	if (strstr("+-/*%^", func)) { return builtin_op(a, func); }
 	lval_del(a);
 	return lval_err("Unknown Function!");
@@ -401,7 +420,7 @@ int main(int argc, char** argv) {
 		  ""
 		  "number   : /-?[0-9]+/ ;"
 		  "symbol   : '+' | '-' | '*' | '/' | '%' | '^' "
-		  "         | \"len\" "
+		  "         | \"len\"  | \"cons\""
 		  "         | \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\" ;"
 		  "sexpr    : '(' <expr>* ')' ;"
 		  "qexpr    : '{' <expr>* '}' ;"
