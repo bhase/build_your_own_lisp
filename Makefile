@@ -1,5 +1,5 @@
 
-targets := 04_prompt 06_parsing 07_eval 08_error_handling 09_s_expression 10_q_expression
+targets := 04_prompt 06_parsing 07_eval 08_error_handling 09_s_expression 10_q_expression 11_variables
 
 all: $(targets)
 
