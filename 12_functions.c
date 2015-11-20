@@ -49,6 +49,7 @@ static lval * lval_take(lval *v, int i);
 static lval * lval_pop(lval *v, int i);
 static lval * lval_call(lenv *e, lval *f, lval *a);
 static lval * builtin_eval(lenv *e, lval *a);
+static lval * builtin_list(lenv *e, lval *a);
 
 
 struct lval {
@@ -376,6 +377,23 @@ static lval * lval_call(lenv *e, lval *f, lval *a) {
 		/* Pop the first symbol from formals */
 		lval *sym = lval_pop(f->formals, 0);
 
+		if (strcmp(sym->sym, "&") == 0) {
+			/* Ensure '&' is followed by another symbol */
+			if (f->formals->count != 1) {
+				lval_del(a);
+				return lval_err("Function format invalid. "
+						"Symbol '&' not followed by a single symbol.");
+			}
+
+			/* Next formal should be bound to remaining
+			 * arguments */
+			lval *nsym = lval_pop(f->formals, 0);
+			lenv_put(f->env, nsym, builtin_list(e, a));
+			lval_del(sym);
+			lval_del(nsym);
+			break;
+		}
+
 		/* Pop the next argument from list */
 		lval *val = lval_pop(a, 0);
 
@@ -388,6 +406,29 @@ static lval * lval_call(lenv *e, lval *f, lval *a) {
 
 	/* Argument list is now bound so it can be cleaned up */
 	lval_del(a);
+
+	/* If '&' remains in formal list bind to empty list */
+	if (    f->formals->count > 0
+	    && strcmp(f->formals->cell[0]->sym, "&") == 0) {
+
+		/* Check to ensure that it is not passed invalidly */
+		if (f->formals->count != 2) {
+			return lval_err("Function format invalid. "
+					"Symbol '&' not followed by a single symbol.");
+		}
+
+		/* Pop and delete '&' symbol */
+		lval_del(lval_pop(f->formals, 0));
+
+		/* Pop next symbol and create empty list */
+		lval *sym = lval_pop(f->formals, 0);
+		lval *val = lval_qexpr();
+
+		/* bind to environment and delete */
+		lenv_put(f->env, sym, val);
+		lval_del(sym);
+		lval_del(val);
+	}
 
 	/* If all formals have been bound: evaluate */
 	if (f->formals->count == 0) {
@@ -691,11 +732,11 @@ static lval * builtin_var(lenv *e, lval *a, char *func) {
 
 	for (int i = 0; i < syms->count; i++) {
 		/* If "def" define in globally. If "put" define locally. */
-		if (strcmp(func, "def")) {
+		if (strcmp(func, "def") == 0) {
 			lenv_def(e, syms->cell[i], a->cell[i + 1]);
 		}
 
-		if (strcmp(func, "=")) {
+		if (strcmp(func, "=") == 0) {
 			lenv_put(e, syms->cell[i], a->cell[i + 1]);
 		}
 	}
