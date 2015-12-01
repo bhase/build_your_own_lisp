@@ -573,6 +573,120 @@ static lval * lval_copy(lval *v) {
 }
 
 
+int lval_eq(lval *x, lval *y) {
+
+	/* Different types? Always unequal. */
+	if (x->type != y->type) {
+		return 0;
+	}
+
+	switch (x->type) {
+	case LVAL_NUM:
+		return x->num == y->num;
+	case LVAL_ERR:
+		return (strcmp(x->err, y->err) == 0);
+	case LVAL_SYM:
+		return (strcmp(x->sym, y->sym) == 0);
+
+	case LVAL_FUN:
+		/* If builtin compare pointer otherwise
+		 * compare formals and body */
+		if (x->builtin || y->builtin) {
+			return x->builtin == y->builtin;
+		} else {
+			return     lval_eq(x->formals, y->formals)
+				&& lval_eq(x->body, y->body);
+		}
+
+	case LVAL_QEXPR:
+	case LVAL_SEXPR:
+		/* for lists compare each element individually */
+		if (x->count != y->count) { return 0; }
+		for (int i = 0; i < x->count; i++) {
+			if (!lval_eq(x->cell[i], y->cell[i])) {
+				/* one element differs -> list not equal */
+				return 0;
+			}
+		}
+		return 1;
+	}
+	return 0;
+}
+
+
+static lval * builtin_op(lenv *e, lval *a, char *op) {
+
+	/* Ensure all arguments are numbers */
+	for (int i = 0; i < a->count; i++) {
+		LASSERT_NUM_AT(a, i, op);
+	}
+
+	/* Pop the first element */
+	lval *x = lval_pop(a, 0);
+
+	/* If no arguments and sub then perform unary negation */
+	if (a->count == 0 && (strcmp(op, "-") == 0)) {
+		x->num = -x->num;
+	}
+
+	/* while there are still elements remaining */
+	while (a->count > 0) {
+
+		/* pop the next element */
+		lval *y = lval_pop(a, 0);
+
+		if (strcmp(op, "+") == 0) { x->num += y->num; }
+		if (strcmp(op, "-") == 0) { x->num -= y->num; }
+		if (strcmp(op, "*") == 0) { x->num *= y->num; }
+		if (strcmp(op, "/") == 0) {
+			if (y->num == 0) {
+				lval_del(x);
+				lval_del(y);
+				x = lval_err("Division by zero!");
+				break;
+			}
+			x->num /= y->num;
+		}
+		if (strcmp(op, "%") == 0) {
+			if (y->num == 0) {
+				lval_del(x);
+				lval_del(y);
+				x = lval_err("Division by zero!");
+				break;
+			}
+			x->num %= y->num;
+		}
+		if (strcmp(op, "^") == 0) { x->num = pow(x->num, y->num); }
+		lval_del(y);
+	}
+
+	lval_del(a);
+	return x;
+}
+
+static lval * builtin_ord(lenv *e, lval *a, char *op) {
+	LASSERT_COUNT(a, 2, op);
+	LASSERT_NUM_AT(a, 0, op);
+	LASSERT_NUM_AT(a, 1, op);
+
+	int r;
+	if (strcmp(op, ">") == 0) {
+		r = (a->cell[0]->num > a->cell[1]->num);
+	}
+	if (strcmp(op, "<") == 0) {
+		r = (a->cell[0]->num < a->cell[1]->num);
+	}
+	if (strcmp(op, ">=") == 0) {
+		r = (a->cell[0]->num >= a->cell[1]->num);
+	}
+	if (strcmp(op, "<=") == 0) {
+		r = (a->cell[0]->num <= a->cell[1]->num);
+	}
+	lval_del(a);
+	return lval_num(r);
+}
+
+
 static lval * builtin_head(lenv *e, lval *a) {
 	LASSERT_COUNT(a, 1, "head");
 	LASSERT_QEXPR_AT(a, 0, "head");
@@ -645,56 +759,6 @@ static lval * builtin_join(lenv *e, lval *a) {
 	lval *x = lval_pop(a, 0);
 	while (a->count) {
 		x = lval_join(x, lval_pop(a, 0));
-	}
-
-	lval_del(a);
-	return x;
-}
-
-static lval * builtin_op(lenv *e, lval *a, char *op) {
-	
-	/* Ensure all arguments are numbers */
-	for (int i = 0; i < a->count; i++) {
-		LASSERT_NUM_AT(a, i, op);
-	}
-
-	/* Pop the first element */
-	lval *x = lval_pop(a, 0);
-
-	/* If no arguments and sub then perform unary negation */
-	if (a->count == 0 && (strcmp(op, "-") == 0)) {
-		x->num = -x->num;
-	}
-
-	/* while there are still elements remaining */
-	while (a->count > 0) {
-
-		/* pop the next element */
-		lval *y = lval_pop(a, 0);
-
-		if (strcmp(op, "+") == 0) { x->num += y->num; }
-		if (strcmp(op, "-") == 0) { x->num -= y->num; }
-		if (strcmp(op, "*") == 0) { x->num *= y->num; }
-		if (strcmp(op, "/") == 0) {
-			if (y->num == 0) {
-				lval_del(x);
-				lval_del(y);
-				x = lval_err("Division by zero!");
-				break;
-			}
-			x->num /= y->num;
-		}
-		if (strcmp(op, "%") == 0) {
-			if (y->num == 0) {
-				lval_del(x);
-				lval_del(y);
-				x = lval_err("Division by zero!");
-				break;
-			}
-			x->num %= y->num;
-		}
-		if (strcmp(op, "^") == 0) { x->num = pow(x->num, y->num); }
-		lval_del(y);
 	}
 
 	lval_del(a);
@@ -774,6 +838,66 @@ static lval * builtin_put(lenv *e, lval *a) {
 	return builtin_var(e, a, "=");
 }
 
+static lval * builtin_gt(lenv *e, lval *a) {
+	return builtin_ord(e, a, ">");
+}
+
+static lval * builtin_lt(lenv *e, lval *a) {
+	return builtin_ord(e, a, "<");
+}
+
+static lval * builtin_ge(lenv *e, lval *a) {
+	return builtin_ord(e, a, ">=");
+}
+
+static lval * builtin_le(lenv *e, lval *a) {
+	return builtin_ord(e, a, "<=");
+}
+
+static lval * builtin_cmp(lenv *e, lval *a, char *op) {
+	LASSERT_COUNT(a, 2, op);
+
+	int r;
+	if (strcmp(op, "==") == 0) {
+		r = lval_eq(a->cell[0], a->cell[1]);
+	}
+	if (strcmp(op, "!=") == 0) {
+		r = !lval_eq(a->cell[0], a->cell[1]);
+	}
+	lval_del(a);
+	return lval_num(r);
+}
+
+static lval * builtin_eq(lenv *e, lval *a) {
+	return builtin_cmp(e, a, "==");
+}
+
+static lval * builtin_ne(lenv *e, lval *a) {
+	return builtin_cmp(e, a, "!=");
+}
+
+static lval * builtin_if(lenv *e, lval *a) {
+	LASSERT_COUNT(a, 3, "if");
+	LASSERT_NUM_AT(a, 0, "if");
+	LASSERT_QEXPR_AT(a, 1, "if");
+	LASSERT_QEXPR_AT(a, 2, "if");
+
+	/* mark both expressions as evaluable */
+	lval *x;
+	a->cell[1]->type = LVAL_SEXPR;
+	a->cell[2]->type = LVAL_SEXPR;
+
+	if (a->cell[0]->num) {
+		x = lval_eval(e, lval_pop(a, 1));
+	} else {
+		x = lval_eval(e, lval_pop(a, 2));
+	}
+
+	lval_del(a);
+	return x;
+}
+
+
 
 static void lenv_add_builtin(lenv *e, char *name, lbuiltin func) {
 	lval *k = lval_sym(name);
@@ -802,6 +926,14 @@ static void lenv_add_builtins(lenv *e) {
 	lenv_add_builtin(e, "def", builtin_def);
 	lenv_add_builtin(e, "=", builtin_put);
 	lenv_add_builtin(e, "\\", builtin_lambda);
+
+	lenv_add_builtin(e, "if", builtin_if);
+	lenv_add_builtin(e, "==", builtin_eq);
+	lenv_add_builtin(e, "!=", builtin_ne);
+	lenv_add_builtin(e, ">",  builtin_gt);
+	lenv_add_builtin(e, "<",  builtin_lt);
+	lenv_add_builtin(e, ">=", builtin_ge);
+	lenv_add_builtin(e, "<=", builtin_le);
 }
 
 
