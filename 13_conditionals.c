@@ -897,7 +897,53 @@ static lval * builtin_if(lenv *e, lval *a) {
 	return x;
 }
 
+static lval * builtin_or(lenv *e, lval *a) {
+	LASSERT_COUNT(a, 2, "||");
+	LASSERT_NUM_AT(a, 0, "||");
+	LASSERT_NUM_AT(a, 1, "||");
 
+	lval *x;
+	if (a->cell[0]->num || a->cell[1]->num) {
+		x = lval_num(1);
+	} else {
+		x = lval_num(0);
+	}
+
+	lval_del(a);
+	return x;
+}
+
+static lval * builtin_and(lenv *e, lval *a) {
+	LASSERT_COUNT(a, 2, "&&");
+	LASSERT_NUM_AT(a, 0, "&&");
+	LASSERT_NUM_AT(a, 1, "&&");
+
+	lval *x;
+	if (a->cell[0]->num && a->cell[1]->num) {
+		x = lval_num(1);
+	} else {
+		x = lval_num(0);
+	}
+
+	lval_del(a);
+	return x;
+}
+
+static lval * builtin_not(lenv *e, lval *a) {
+	LASSERT_COUNT(a, 1, "!");
+	LASSERT_NUM_AT(a, 0, "!");
+
+	lval *x;
+	if (a->cell[0]->num) {
+		/* Invert it */
+		x = lval_num(0);
+	} else {
+		x = lval_num(1);
+	}
+
+	lval_del(a);
+	return x;
+}
 
 static void lenv_add_builtin(lenv *e, char *name, lbuiltin func) {
 	lval *k = lval_sym(name);
@@ -934,6 +980,10 @@ static void lenv_add_builtins(lenv *e) {
 	lenv_add_builtin(e, "<",  builtin_lt);
 	lenv_add_builtin(e, ">=", builtin_ge);
 	lenv_add_builtin(e, "<=", builtin_le);
+
+	lenv_add_builtin(e, "||", builtin_or);
+	lenv_add_builtin(e, "&&", builtin_and);
+	lenv_add_builtin(e, "!",  builtin_not);
 }
 
 
@@ -951,7 +1001,7 @@ int main(int argc, char** argv) {
 	mpca_lang(MPCA_LANG_DEFAULT,
 		  ""
 		  "number   : /-?[0-9]+/ ;"
-		  "symbol   : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;"
+		  "symbol   : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&|]+/ ;"
 		  "sexpr    : '(' <expr>* ')' ;"
 		  "qexpr    : '{' <expr>* '}' ;"
 		  "expr     : <number> | <symbol> | <sexpr> | <qexpr> ;"
