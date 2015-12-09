@@ -1,6 +1,6 @@
 
 targets := 04_prompt 06_parsing 07_eval 08_error_handling 09_s_expression
-targets += 10_q_expression 11_variables 12_functions 13_conditionals
+targets += 10_q_expression 11_variables 12_functions 13_conditionals 14_strings
 
 all: $(targets)
 
