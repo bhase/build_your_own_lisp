@@ -1,0 +1,4 @@
+(def {fun} (\ {args body} {def (head args) (\ (tail args) body)}))
+
+(fun {nth n lst} {if (> n 1) {nth (- n 1) (tail lst)}{(head lst)}})
+
